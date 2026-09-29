@@ -6,17 +6,10 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Monta o restaurante, coloca todo mundo para rodar e imprime o resumo.
- * (Nas proximas entregas esta classe ganha forno, estoque, balcao, caixa,
- * gerente com cancelamento e o relatorio completo da secao 7.)
- *
- * Ordem do encerramento - o ponto mais delicado da Entrega 1:
- *   1. join() nas threads dos DOIS atendentes;
- *   2. so entao fila.encerrar(), que avisa os cozinheiros;
- *   3. join() nas threads dos cozinheiros;
- *   4. imprime o resumo.
- * Fechar antes do passo 1 perderia pedidos; nunca fechar deixaria os
- * cozinheiros bloqueados para sempre no take() (falha de liveness).
+ * Monta o restaurante, roda a simulacao e imprime o resumo.
+ * Encerramento: join nos dois atendentes -> encerrar a fila -> join nos
+ * cozinheiros. Fechar antes perderia pedidos; nunca fechar deixaria os
+ * cozinheiros bloqueados para sempre no take().
  */
 public final class Restaurante {
 
@@ -61,16 +54,13 @@ public final class Restaurante {
         threadsDosCozinheiros.forEach(Thread::start);
         threadsDosAtendentes.forEach(Thread::start);
 
-        // 1. Espera os DOIS atendentes.
         for (Thread thread : threadsDosAtendentes) {
             thread.join();
         }
         Log.evento("Gerente", "os dois atendentes terminaram - fila fechada para novos pedidos");
 
-        // 2. So agora avisa os cozinheiros que nao vem mais pedido.
         fila.encerrar(quantidadeDeCozinheiros);
 
-        // 3. Espera cada cozinheiro terminar o que pegou.
         for (Thread thread : threadsDosCozinheiros) {
             thread.join();
         }

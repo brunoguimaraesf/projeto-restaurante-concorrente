@@ -1,14 +1,9 @@
 package restaurante;
 
 /**
- * Ponto de entrada. O menu completo (modo seguro, os tres bugs e a comparacao
- * 1 x N cozinheiros) e requisito da Entrega 3; aqui a quantidade de cozinheiros
- * e de pedidos ja e configuravel por parametro.
- *
- * Uso:
- *   java -cp out restaurante.Program
- *   java -cp out restaurante.Program 4 60
- *       (primeiro parametro = cozinheiros, segundo = total de pedidos)
+ * Ponto de entrada.
+ * Uso: java -cp out restaurante.Program [cozinheiros] [pedidos]
+ * O menu completo e requisito da Entrega 3.
  */
 public final class Program {
 

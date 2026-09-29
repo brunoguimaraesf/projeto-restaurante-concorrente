@@ -1,11 +1,6 @@
 package restaurante;
 
-/**
- * Um pedido feito por um atendente e preparado por um cozinheiro.
- *
- * Tambem e imutavel: depois de criado, o pedido atravessa a fila e chega no
- * cozinheiro sem que ninguem precise de lock para le-lo.
- */
+/** Pedido anotado por um atendente e preparado por um cozinheiro. Imutavel. */
 public final class Pedido {
 
     private final int numero;
@@ -26,7 +21,7 @@ public final class Pedido {
         return prato;
     }
 
-    /** Nome do atendente que gerou o pedido. */
+    /** Atendente que anotou o pedido. */
     public String getOrigem() {
         return origem;
     }

@@ -3,12 +3,7 @@ package restaurante;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Cardapio minimo pedido no enunciado (secao 4).
- *
- * A lista e estatica e imutavel: todas as threads leem a mesma lista ao mesmo
- * tempo, e como nada nela muda, nao ha race condition possivel aqui.
- */
+/** Cardapio minimo do enunciado. Lista estatica e imutavel. */
 public final class Cardapio {
 
     public static final Prato PIZZA = new Prato(
@@ -26,16 +21,9 @@ public final class Cardapio {
     public static final List<Prato> PRATOS = List.of(PIZZA, LASANHA, SALADA, HAMBURGUER);
 
     private Cardapio() {
-        // classe utilitaria: nao deve ser instanciada
     }
 
-    /**
-     * Sorteia um prato do cardapio.
-     *
-     * Usa ThreadLocalRandom em vez de um Random compartilhado: o Random comum e
-     * thread-safe, mas todas as threads disputam o mesmo estado interno e viram
-     * um ponto de contencao. O ThreadLocalRandom da um gerador por thread.
-     */
+    /** ThreadLocalRandom: um gerador por thread, sem disputa pelo mesmo estado. */
     public static Prato sortear() {
         return PRATOS.get(ThreadLocalRandom.current().nextInt(PRATOS.size()));
     }

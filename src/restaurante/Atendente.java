@@ -4,15 +4,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Atendente: gera pedidos aleatorios em intervalos aleatorios (requisito 1).
- * E o PRODUTOR do padrao produtor/consumidor.
- *
- * Os dois atendentes dividem o mesmo alvo de 60 pedidos. Quem pega qual numero
- * e decidido por um AtomicInteger compartilhado: getAndIncrement() le, soma e
- * grava em UMA operacao atomica (instrucao CAS do processador). Com um int
- * comum (numero++), os dois atendentes poderiam ler o mesmo valor e gerar dois
- * pedidos com o mesmo numero, ou gerar menos de 60 no total: e exatamente a
- * race condition da Aula 2.
+ * Produtor: gera pedidos aleatorios em intervalos aleatorios (requisito 1).
+ * Os dois atendentes dividem o mesmo alvo de pedidos; o numero de cada um vem
+ * de AtomicInteger.getAndIncrement() - ler, somar e gravar numa operacao so.
+ * Com um int comum (numero++) sairiam numeros repetidos: race condition.
  */
 public final class Atendente implements Runnable {
 
@@ -41,11 +36,9 @@ public final class Atendente implements Runnable {
         Log.evento(nome, "abriu o caderno de pedidos");
         try {
             while (true) {
-                // Tempo entre um cliente e outro.
                 Thread.sleep(ThreadLocalRandom.current()
                         .nextInt(INTERVALO_MINIMO_MS, INTERVALO_MAXIMO_MS + 1));
 
-                // Reserva um numero de pedido de forma atomica.
                 int numero = proximoNumero.getAndIncrement();
                 if (numero > totalDePedidos) {
                     break;
@@ -60,8 +53,7 @@ public final class Atendente implements Runnable {
                             + pedido.descricaoCurta());
                 }
 
-                // Se a fila estiver cheia, a thread para AQUI ate abrir vaga.
-                fila.adicionar(pedido);
+                fila.adicionar(pedido);  // trava aqui se a fila estiver cheia
                 pedidosGerados++;
 
                 Log.evento(nome, pedido.descricaoCurta() + " entrou na fila ("
@@ -69,9 +61,7 @@ public final class Atendente implements Runnable {
             }
             Log.evento(nome, "encerrou o turno - anotou " + pedidosGerados + " pedidos");
         } catch (InterruptedException e) {
-            // Boa pratica: nunca engolir a interrupcao. Restaura a flag para
-            // quem chamou saber que a thread foi interrompida.
-            Thread.currentThread().interrupt();
+            Thread.currentThread().interrupt();  // nunca engolir a interrupcao
             Log.evento(nome, "foi interrompido");
         }
     }
