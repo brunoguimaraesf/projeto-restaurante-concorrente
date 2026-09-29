@@ -12,8 +12,8 @@ Repositório: https://github.com/brunoguimaraesf/projeto-restaurante-concorrente
 
 ## Integrantes
 
-- *(preencher)* Nome do integrante 1 — matrícula
-- *(preencher)* Nome do integrante 2 — matrícula
+- Bruno Gabriel Guimarães Fernandes
+- João Víctor Severino da Silva 
 
 ## Status das entregas
 
