@@ -8,10 +8,12 @@ ingredientes.
 > **Linguagem:** Java (em vez de C#/.NET). O mapeamento de cada ferramenta de
 > concorrência do enunciado para o equivalente em Java está na tabela abaixo.
 
+Repositório: https://github.com/brunoguimaraesf/projeto-restaurante-concorrente
+
 ## Integrantes
 
-- Nome do integrante 1 — matrícula
-- Nome do integrante 2 — matrícula
+- *(preencher)* Nome do integrante 1 — matrícula
+- *(preencher)* Nome do integrante 2 — matrícula
 
 ## Status das entregas
 
@@ -24,7 +26,8 @@ ingredientes.
 
 ## Como executar
 
-Precisa do **JDK 21 ou superior** (`java -version` para conferir).
+Precisa do **JDK 21 ou superior**. Para conferir: `java -version`.
+Se não tiver, no Windows: `winget install --id EclipseAdoptium.Temurin.21.JDK -e`
 
 ### Windows (PowerShell)
 
@@ -33,6 +36,10 @@ Precisa do **JDK 21 ou superior** (`java -version` para conferir).
 .\run.ps1 1 60      # 1 cozinheiro, 60 pedidos
 .\run.ps1 8 60      # 8 cozinheiros, 60 pedidos
 ```
+
+O `run.ps1` compila e executa. Se o `javac` não estiver no PATH — acontece
+quando o terminal foi aberto antes de instalar o JDK — ele procura o JDK
+sozinho em `JAVA_HOME`, Eclipse Adoptium, Java, Microsoft e Corretto.
 
 ### Linux / macOS
 
@@ -51,6 +58,15 @@ java -cp out restaurante.Program 4 60
 Parâmetros: `<quantidade de cozinheiros> <total de pedidos>`.
 Sem parâmetros, usa 4 cozinheiros e 60 pedidos.
 
+### Se der erro
+
+| Erro | Solução |
+|---|---|
+| `run.ps1 não é reconhecido` | falta o `.\` na frente: `.\run.ps1` |
+| `a execução de scripts foi desabilitada` | rode `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` e tente de novo |
+| `javac não é reconhecido` (rodando na mão) | feche e abra o terminal, ou use o `.\run.ps1`, que acha o JDK sozinho |
+| acentos e `·` saindo errados | rode `chcp 65001` antes — o `run.ps1` já faz isso |
+
 ## O que a Entrega 1 já faz
 
 | # | Requisito do enunciado | Onde está |
@@ -62,6 +78,53 @@ Sem parâmetros, usa 4 cozinheiros e 60 pedidos.
 
 Nesta etapa o preparo é só o `Thread.sleep` do prato — ainda **sem** forno,
 utensílios ou estoque (isso é a Entrega 2).
+
+## Saída de exemplo
+
+Trecho do log com os 4 cozinheiros preparando ao mesmo tempo e o atendente
+travado porque a fila encheu:
+
+```
+[00:02.065] Atendente 2    · Hamburguer #22 entrou na fila (10/10)
+[00:02.138] Atendente 1    · anotou Hamburguer #23
+[00:02.139] Atendente 1    · fila cheia (10/10) - esperando vaga para Hamburguer #23
+[00:02.327] Cozinheiro 3   · Pizza #9 ficou pronto
+[00:02.327] Cozinheiro 3   · pegou Hamburguer #13 - comecou o preparo (cozinhando agora: 4)
+[00:02.327] Atendente 1    · Hamburguer #23 entrou na fila (10/10)
+```
+
+Repare na sequência das três últimas linhas: o atendente só consegue enfileirar
+o pedido **no mesmo instante** em que um cozinheiro libera uma vaga.
+
+E o resumo do fim, com as verificações automáticas:
+
+```
+===== RESUMO - Entrega 1 =====
+Cozinheiros: 4 | Fila: capacidade 10
+
+Pedidos gerados .............. 60
+  Atendente 1 ................ 29
+  Atendente 2 ................ 31
+Pratos preparados ............ 60
+  Cozinheiro 1 ............... 17  (10,6 s de fogao)
+  Cozinheiro 2 ............... 13  (10,4 s de fogao)
+  Cozinheiro 3 ............... 15  (10,6 s de fogao)
+  Cozinheiro 4 ............... 15  (10,2 s de fogao)
+Vezes que a fila encheu ...... 34
+Pedidos sobrando na fila ..... 0
+
+Tempo total .................. 11,1 s
+Soma dos preparos ............ 41,7 s  (se fosse sequencial, seria esse o tempo)
+Ganho da concorrencia ........ 3,77x
+
+[OK]   todos os 60 pedidos foram gerados
+[OK]   pedidos gerados = pratos preparados (nenhum pedido se perdeu)
+[OK]   a fila terminou vazia
+```
+
+Os cozinheiros não preparam a mesma quantidade de pratos (17, 13, 15, 15) — e
+isso é o esperado: quem pega um prato rápido volta antes para a fila. O que
+precisa fechar é o total.
 
 ## Equivalências C# → Java
 
@@ -79,6 +142,16 @@ utensílios ou estoque (isso é a Entrega 2).
 | `ConcurrentQueue` + `AutoResetEvent` | `ConcurrentLinkedQueue` + `Semaphore`/`wait-notify` | **Entrega 2** (balcão e sino) |
 | `CancellationTokenSource` | `Thread.interrupt()` / `AtomicBoolean` + `ScheduledExecutorService` | **Entrega 3** (gerente) |
 | `Thread.Sleep` | `Thread.sleep` | preparo simulado |
+
+## Estrutura do projeto
+
+```
+RestauranteConcorrente/
+├── src/restaurante/     código-fonte (um arquivo por classe)
+├── run.ps1              compila e executa no Windows
+├── run.sh               compila e executa no Linux/macOS
+└── out/                 .class gerados (fora do Git)
+```
 
 ## Classes
 
@@ -126,13 +199,24 @@ utensílios ou estoque (isso é a Entrega 2).
 ## Concorrência × paralelismo (Aula 1)
 
 Com 1 cozinheiro os 60 pedidos são preparados um atrás do outro; com N
-cozinheiros eles são preparados **ao mesmo tempo** em núcleos diferentes. O
-resumo imprime o tempo total e a soma dos preparos, então dá para comparar:
+cozinheiros eles são preparados **ao mesmo tempo** em núcleos diferentes:
 
 ```powershell
 .\run.ps1 1 60
 .\run.ps1 4 60
 ```
+
+| Cozinheiros | Tempo total | Vezes que a fila encheu |
+|---|---|---|
+| 1 | 41,3 s | 46 |
+| 4 | 11,1 s | 34 |
+
+Os ~41 s de preparo não somem — eles são divididos entre os 4 cozinheiros. Por
+isso o resumo imprime também a **soma dos preparos**: ela fica em ~41 s nos
+dois casos, o que muda é o tempo de parede.
+
+Com 1 cozinheiro a fila enche **mais** vezes: um consumidor só não dá conta de
+dois produtores, e o gargalo aparece como o atendente esperando vaga.
 
 (A opção de menu com essa comparação lado a lado é requisito da Entrega 3.)
 
