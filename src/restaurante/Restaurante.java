@@ -3,13 +3,13 @@ package restaurante;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Monta o restaurante, roda a simulacao e imprime o resumo.
- * Encerramento: join nos dois atendentes -> encerrar a fila -> join nos
- * cozinheiros. Fechar antes perderia pedidos; nunca fechar deixaria os
- * cozinheiros bloqueados para sempre no take().
+ * Monta o restaurante, roda a simulacao e imprime o relatorio.
+ * Encerramento, nesta ordem: join atendentes -> encerrar fila -> join
+ * cozinheiros -> fechar balcao -> join garcom.
  */
 public final class Restaurante {
 
@@ -23,20 +23,29 @@ public final class Restaurante {
 
     public void abrir() throws InterruptedException {
         Log.iniciar();
-        Log.linha("===== RESTAURANTE CONCORRENTE - Entrega 1 =====");
+        Log.linha("===== RESTAURANTE CONCORRENTE - Entrega 2 =====");
         Log.linha("Atendentes: 2 | Cozinheiros: " + quantidadeDeCozinheiros
+                + " | Fornos: " + Cozinha.FORNOS
                 + " | Fila: capacidade " + FilaDePedidos.CAPACIDADE
                 + " | Pedidos: " + totalDePedidos);
+        Log.linha("Estoque inicial: " + Estoque.QUANTIDADE_INICIAL + " unidades de cada ingrediente");
         Log.linha("");
 
         FilaDePedidos fila = new FilaDePedidos();
+        Estoque estoque = new Estoque();
+        Cozinha cozinha = new Cozinha();
+        Balcao balcao = new Balcao();
         AtomicInteger proximoNumero = new AtomicInteger(1);
         AtomicInteger cozinheirosPreparando = new AtomicInteger();
+
+        Garcom garcom = new Garcom("Garcom", balcao);
+        Thread threadDoGarcom = new Thread(garcom, "garcom");
 
         List<Cozinheiro> cozinheiros = new ArrayList<>();
         List<Thread> threadsDosCozinheiros = new ArrayList<>();
         for (int i = 1; i <= quantidadeDeCozinheiros; i++) {
-            Cozinheiro cozinheiro = new Cozinheiro("Cozinheiro " + i, fila, cozinheirosPreparando);
+            Cozinheiro cozinheiro = new Cozinheiro("Cozinheiro " + i, fila, estoque,
+                    cozinha, balcao, cozinheirosPreparando);
             cozinheiros.add(cozinheiro);
             threadsDosCozinheiros.add(new Thread(cozinheiro, "cozinheiro-" + i));
         }
@@ -51,6 +60,7 @@ public final class Restaurante {
 
         long inicio = System.nanoTime();
 
+        threadDoGarcom.start();
         threadsDosCozinheiros.forEach(Thread::start);
         threadsDosAtendentes.forEach(Thread::start);
 
@@ -64,48 +74,77 @@ public final class Restaurante {
         for (Thread thread : threadsDosCozinheiros) {
             thread.join();
         }
+        Log.evento("Gerente", "cozinha vazia - fechando o balcao");
+
+        balcao.fechar();
+        threadDoGarcom.join();
 
         long totalMs = (System.nanoTime() - inicio) / 1_000_000L;
-        imprimirResumo(atendentes, cozinheiros, fila, totalMs);
+        imprimirRelatorio(atendentes, cozinheiros, garcom, fila, balcao, estoque, totalMs);
     }
 
-    private void imprimirResumo(List<Atendente> atendentes,
-                                List<Cozinheiro> cozinheiros,
-                                FilaDePedidos fila,
-                                long totalMs) {
-        int gerados = atendentes.stream().mapToInt(Atendente::getPedidosGerados).sum();
+    private void imprimirRelatorio(List<Atendente> atendentes,
+                                   List<Cozinheiro> cozinheiros,
+                                   Garcom garcom,
+                                   FilaDePedidos fila,
+                                   Balcao balcao,
+                                   Estoque estoque,
+                                   long totalMs) {
+        int recebidos = atendentes.stream().mapToInt(Atendente::getPedidosGerados).sum();
         int preparados = cozinheiros.stream().mapToInt(Cozinheiro::getPratosPreparados).sum();
+        int recusados = cozinheiros.stream().mapToInt(Cozinheiro::getPedidosRecusados).sum();
+        int entregues = garcom.getPratosEntregues();
         long somaDosPreparos = cozinheiros.stream().mapToLong(Cozinheiro::getTempoPreparandoMs).sum();
 
         Log.linha("");
-        Log.linha("===== RESUMO - Entrega 1 =====");
+        Log.linha("===== RELATORIO - Entrega 2 =====");
         Log.linha("Cozinheiros: " + quantidadeDeCozinheiros
+                + " | Fornos: " + Cozinha.FORNOS
                 + " | Fila: capacidade " + FilaDePedidos.CAPACIDADE);
         Log.linha("");
-        Log.linha(preencher("Pedidos gerados", 30) + gerados);
+        Log.linha(preencher("Pedidos recebidos", 32) + recebidos);
         for (Atendente atendente : atendentes) {
-            Log.linha("  " + preencher(atendente.getNome(), 28) + atendente.getPedidosGerados());
+            Log.linha("  " + preencher(atendente.getNome(), 30) + atendente.getPedidosGerados());
         }
-        Log.linha(preencher("Pratos preparados", 30) + preparados);
+        Log.linha(preencher("Preparados", 32) + preparados);
         for (Cozinheiro cozinheiro : cozinheiros) {
-            Log.linha("  " + preencher(cozinheiro.getNome(), 28) + cozinheiro.getPratosPreparados()
-                    + "  (" + segundos(cozinheiro.getTempoPreparandoMs()) + " de fogao)");
+            Log.linha("  " + preencher(cozinheiro.getNome(), 30) + cozinheiro.getPratosPreparados()
+                    + "  (recusou " + cozinheiro.getPedidosRecusados()
+                    + ", " + segundos(cozinheiro.getTempoPreparandoMs()) + " de preparo)");
         }
-        Log.linha(preencher("Vezes que a fila encheu", 30) + fila.getVezesQueEncheu());
-        Log.linha(preencher("Pedidos sobrando na fila", 30) + fila.tamanhoAtual());
+        Log.linha(preencher("Entregues pelo garcom", 32) + entregues);
+        Log.linha(preencher("Recusados (sem ingrediente)", 32) + recusados);
         Log.linha("");
-        Log.linha(preencher("Tempo total", 30) + segundos(totalMs));
-        Log.linha(preencher("Soma dos preparos", 30) + segundos(somaDosPreparos)
-                + "  (se fosse sequencial, seria esse o tempo)");
-        Log.linha(preencher("Ganho da concorrencia", 30)
+        Log.linha("Estoque final: " + formatarEstoque(estoque.situacaoAtual()));
+        Log.linha("");
+        Log.linha(preencher("Vezes que a fila encheu", 32) + fila.getVezesQueEncheu());
+        Log.linha(preencher("Pedidos sobrando na fila", 32) + fila.tamanhoAtual());
+        Log.linha(preencher("Pratos sobrando no balcao", 32) + balcao.tamanhoAtual());
+        Log.linha(preencher("Tempo total", 32) + segundos(totalMs));
+        Log.linha(preencher("Soma dos preparos", 32) + segundos(somaDosPreparos));
+        Log.linha(preencher("Paralelismo medio", 32)
                 + String.format(Locale.forLanguageTag("pt-BR"), "%.2fx",
                         totalMs == 0 ? 0 : (double) somaDosPreparos / totalMs));
         Log.linha("");
-        Log.linha(verificacao(gerados == totalDePedidos,
-                "todos os " + totalDePedidos + " pedidos foram gerados"));
-        Log.linha(verificacao(preparados == gerados,
-                "pedidos gerados = pratos preparados (nenhum pedido se perdeu)"));
-        Log.linha(verificacao(fila.tamanhoAtual() == 0, "a fila terminou vazia"));
+        Log.linha(verificacao(recebidos == entregues + recusados,
+                "recebidos = entregues + recusados"));
+        Log.linha(verificacao(!estoque.temAlgumNegativo(),
+                "nenhum ingrediente com estoque negativo"));
+        Log.linha(verificacao(fila.tamanhoAtual() == 0 && balcao.tamanhoAtual() == 0,
+                "fila e balcao terminaram vazios"));
+        Log.linha(verificacao(preparados == entregues,
+                "todo prato preparado foi entregue (nenhum esquecido no balcao)"));
+    }
+
+    private static String formatarEstoque(Map<String, Integer> estoque) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Integer> item : estoque.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append(" | ");
+            }
+            sb.append(item.getKey()).append(" ").append(item.getValue());
+        }
+        return sb.toString();
     }
 
     private static String verificacao(boolean ok, String texto) {
@@ -117,10 +156,10 @@ public final class Restaurante {
     }
 
     private static String preencher(String texto, int largura) {
-        StringBuilder sb = new StringBuilder(texto).append(' ');
+        StringBuilder sb = new StringBuilder(texto).append(" ");
         while (sb.length() < largura) {
-            sb.append('.');
+            sb.append(".");
         }
-        return sb.append(' ').toString();
+        return sb.append(" ").toString();
     }
 }

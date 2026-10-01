@@ -7,9 +7,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Fila de pedidos com capacidade 10 (requisito 2).
- * Equivale ao BlockingCollection<Pedido>(10) do C#: ArrayBlockingQueue, com
- * put/take no lugar de Add/Take. Java nao tem CompleteAdding, entao o fim do
- * expediente e avisado por um pedido sentinela (ver encerrar).
+ * Java nao tem CompleteAdding, entao o fim do expediente e avisado por um
+ * pedido sentinela (ver encerrar).
  */
 public final class FilaDePedidos {
 
@@ -40,9 +39,8 @@ public final class FilaDePedidos {
     }
 
     /**
-     * Uma sentinela por cozinheiro. Como a fila e FIFO, elas entram depois de
-     * todos os pedidos reais e cada cozinheiro retira exatamente uma.
-     * Chamar SO depois que os dois atendentes terminarem.
+     * Uma sentinela por cozinheiro: a fila e FIFO, entao elas entram depois dos
+     * pedidos reais. Chamar so depois que os dois atendentes terminarem.
      */
     public void encerrar(int quantidadeDeCozinheiros) throws InterruptedException {
         if (!encerrada.compareAndSet(false, true)) {
