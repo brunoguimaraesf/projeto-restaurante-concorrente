@@ -5,19 +5,26 @@ namespace Restaurante
 {
     /// <summary>
     /// REQUISITO 3 - N cozinheiros consomem a mesma fila ao mesmo tempo.
-    /// Nesta etapa o preparo e so o Thread.Sleep do prato: ainda nao existem
-    /// forno, utensilios nem estoque.
+    /// E a peca que encosta em todos os recursos compartilhados: fila, estoque,
+    /// fornos, utensilios e balcao.
     /// </summary>
     public sealed class Cozinheiro
     {
         private readonly int _id;
         private readonly BlockingCollection<Pedido> _fila;
+        private readonly Estoque _estoque;
+        private readonly Cozinha _cozinha;
+        private readonly Balcao _balcao;
         private readonly Log _log;
 
-        public Cozinheiro(int id, BlockingCollection<Pedido> fila, Log log)
+        public Cozinheiro(int id, BlockingCollection<Pedido> fila, Estoque estoque,
+                          Cozinha cozinha, Balcao balcao, Log log)
         {
             _id = id;
             _fila = fila;
+            _estoque = estoque;
+            _cozinha = cozinha;
+            _balcao = balcao;
             _log = log;
         }
 
@@ -26,24 +33,44 @@ namespace Restaurante
             get { return "Cozinheiro " + _id; }
         }
 
+        public int Recusados { get; private set; }
         public int Preparados { get; private set; }
 
         public void Trabalhar()
         {
             // GetConsumingEnumerable fica pegando pedidos ate a fila ser
-            // fechada com CompleteAdding e esvaziar. E o que faz o cozinheiro
-            // terminar sozinho em vez de esperar para sempre.
+            // fechada com CompleteAdding e esvaziar.
             foreach (var pedido in _fila.GetConsumingEnumerable())
+                Atender(pedido);
+
+            _log.Evento(Nome, "encerrou (" + Preparados + " prato(s), " +
+                              Recusados + " recusado(s))");
+        }
+
+        private void Atender(Pedido pedido)
+        {
+            _log.Evento(Nome, "pegou " + pedido + " da fila");
+
+            // REQUISITO 6 - sem ingrediente o pedido e recusado e nao chega a
+            // ocupar forno nem bancada.
+            if (!_estoque.TentarReservar(pedido.Prato))
             {
-                _log.Evento(Nome, "pegou " + pedido + " da fila");
-
-                Thread.Sleep(pedido.Prato.PreparoMs);
-
-                Preparados++;
-                _log.Evento(Nome, pedido + " pronto");
+                Recusados++;
+                _log.Evento(Nome, pedido + " RECUSADO por falta de ingrediente");
+                return;
             }
 
-            _log.Evento(Nome, "encerrou com " + Preparados + " prato(s)");
+            if (pedido.Prato.UsaForno)
+                _cozinha.Assar(pedido, Nome);          // REQUISITO 4
+            else if (pedido.Prato.UsaTabuaEFaca)
+                _cozinha.UsarTabuaEFaca(pedido, Nome); // REQUISITO 5
+            else
+                Thread.Sleep(pedido.Prato.PreparoMs);
+
+            // REQUISITO 7 - vai para o balcao e toca o sino.
+            _balcao.Depositar(pedido);
+            Preparados++;
+            _log.Evento(Nome, pedido + " pronto, foi para o balcao (sino)");
         }
     }
 }
