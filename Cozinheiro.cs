@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Threading;
 
@@ -12,12 +13,12 @@ namespace Restaurante
     {
         private readonly int _id;
         private readonly BlockingCollection<Pedido> _fila;
-        private readonly Estoque _estoque;
+        private readonly IEstoque _estoque;
         private readonly Cozinha _cozinha;
         private readonly Balcao _balcao;
         private readonly Log _log;
 
-        public Cozinheiro(int id, BlockingCollection<Pedido> fila, Estoque estoque,
+        public Cozinheiro(int id, BlockingCollection<Pedido> fila, IEstoque estoque,
                           Cozinha cozinha, Balcao balcao, Log log)
         {
             _id = id;
@@ -36,12 +37,34 @@ namespace Restaurante
         public int Recusados { get; private set; }
         public int Preparados { get; private set; }
 
-        public void Trabalhar()
+        public void Trabalhar(CancellationToken token)
         {
-            // GetConsumingEnumerable fica pegando pedidos ate a fila ser
-            // fechada com CompleteAdding e esvaziar.
-            foreach (var pedido in _fila.GetConsumingEnumerable())
+            // REQUISITO 9: o token so aparece aqui, na hora de PEGAR pedido.
+            // Depois de pegar, o cozinheiro vai ate o fim: termina o prato
+            // atual mesmo com o restaurante ja fechado.
+            while (!token.IsCancellationRequested)
+            {
+                Pedido pedido;
+
+                try
+                {
+                    if (!_fila.TryTake(out pedido, 50, token))
+                    {
+                        // Sem fechamento o fim vem por aqui: a fila foi marcada
+                        // como completa e nao sobrou nada nela.
+                        if (_fila.IsCompleted)
+                            break;
+
+                        continue;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
                 Atender(pedido);
+            }
 
             _log.Evento(Nome, "encerrou (" + Preparados + " prato(s), " +
                               Recusados + " recusado(s))");

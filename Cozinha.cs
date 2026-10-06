@@ -13,12 +13,16 @@ namespace Restaurante
         private readonly object _tabua = new object();
         private readonly object _faca = new object();
 
+        /// <summary>Quando ligado, o Hamburguer pega os utensilios na ordem trocada (bug 2).</summary>
+        private readonly bool _ordemInvertida;
+
         private readonly Log _log;
 
-        public Cozinha(int totalDeFornos, Log log)
+        public Cozinha(int totalDeFornos, bool ordemInvertida, Log log)
         {
             _totalDeFornos = totalDeFornos;
             _fornos = new SemaphoreSlim(totalDeFornos, totalDeFornos);
+            _ordemInvertida = ordemInvertida;
             _log = log;
         }
 
@@ -46,17 +50,40 @@ namespace Restaurante
         }
 
         /// <summary>
-        /// REQUISITO 5 - a ordem e sempre tabua e depois faca. Com ordem fixa o
-        /// ciclo de espera nao se forma e o deadlock deixa de ser possivel.
+        /// REQUISITO 5 - no modo seguro a ordem e sempre tabua e depois faca.
+        /// Com ordem fixa o ciclo de espera nao se forma e o deadlock deixa de
+        /// ser possivel.
+        ///
+        /// No modo inseguro o Hamburguer inverte: pega a faca e depois a tabua.
+        /// Com uma Salada e um Hamburguer ao mesmo tempo, cada um segura o que
+        /// o outro precisa.
         /// </summary>
         public void UsarTabuaEFaca(Pedido pedido, string quem)
         {
-            _log.Evento(quem, pedido + " pegou a TABUA e quer a faca");
-            lock (_tabua)
+            bool inverter = _ordemInvertida && pedido.Prato == Cardapio.Hamburguer;
+
+            if (inverter)
             {
+                _log.Evento(quem, pedido + " pegou a FACA e quer a tabua");
                 lock (_faca)
                 {
-                    Preparar(pedido, quem);
+                    Thread.Sleep(100); // deixa a outra thread pegar a tabua
+                    lock (_tabua)
+                    {
+                        Preparar(pedido, quem);
+                    }
+                }
+            }
+            else
+            {
+                _log.Evento(quem, pedido + " pegou a TABUA e quer a faca");
+                lock (_tabua)
+                {
+                    Thread.Sleep(100); // deixa a outra thread pegar a faca
+                    lock (_faca)
+                    {
+                        Preparar(pedido, quem);
+                    }
                 }
             }
         }
